@@ -419,9 +419,58 @@ const stopEarlierBackgroundWork = ({
 
         const codexProviderThread = (yield* orchestrator.getThreadProjection(threadId))
           .providerThreads[0]!;
-        // The native reviewer's own thread, still showing its runless root turn as working.
-        const reviewerThreadId = ThreadId.make("thread:reviewer");
-        const reviewerRootId = NodeId.make("node:reviewer-root");
+        // A native subagent's own thread, still showing its runless root turn as working.
+        const subagentThread = (name: string) =>
+          Effect.gen(function* () {
+            const subagentThreadId = ThreadId.make(`thread:${name}`);
+            const rootId = NodeId.make(`node:${name}-root`);
+            yield* orchestrator.dispatch({
+              type: "thread.create",
+              commandId: CommandId.make(`create-${name}`),
+              threadId: subagentThreadId,
+              projectId: ProjectId.make("project:background-work-stop"),
+              title: name,
+              modelSelection,
+              runtimeMode: "full-access",
+              interactionMode: "default",
+              branch: null,
+              worktreePath: cwd,
+              createdBy: "agent",
+              creationSource: "provider",
+            });
+            yield* sink.write({
+              events: [
+                {
+                  id: EventId.make(`${name}-root`),
+                  type: "node.updated",
+                  threadId: subagentThreadId,
+                  occurredAt: now,
+                  payload: {
+                    id: rootId,
+                    threadId: subagentThreadId,
+                    runId: null,
+                    parentNodeId: null,
+                    rootNodeId: rootId,
+                    kind: "root_turn",
+                    status: "running",
+                    countsForRun: false,
+                    providerThreadId: null,
+                    providerTurnId: null,
+                    nativeItemRef: null,
+                    runtimeRequestId: null,
+                    checkpointScopeId: null,
+                    startedAt: now,
+                    completedAt: null,
+                  },
+                },
+              ],
+            });
+            return { threadId: subagentThreadId, rootId };
+          });
+        const { threadId: reviewerThreadId, rootId: reviewerRootId } =
+          yield* subagentThread("reviewer");
+        // The reviewer starts a tester, which runs on a thread of its own.
+        const tester = yield* subagentThread("tester");
         const nestedSubagentId = NodeId.make("subagent:nested");
         const nestedItemId = TurnItemId.make("turn-item:nested-subagent");
         const nested = {
@@ -431,7 +480,7 @@ const stopEarlierBackgroundWork = ({
           driver,
           providerInstanceId: instanceId,
           providerThreadId: null,
-          childThreadId: null,
+          childThreadId: tester.threadId,
           prompt: "Check the tests",
           title: null,
           status: "running",
@@ -440,45 +489,8 @@ const stopEarlierBackgroundWork = ({
           completedAt: null,
           updatedAt: now,
         } as const;
-        yield* orchestrator.dispatch({
-          type: "thread.create",
-          commandId: CommandId.make("create-reviewer"),
-          threadId: reviewerThreadId,
-          projectId: ProjectId.make("project:background-work-stop"),
-          title: "Reviewer",
-          modelSelection,
-          runtimeMode: "full-access",
-          interactionMode: "default",
-          branch: null,
-          worktreePath: cwd,
-          createdBy: "agent",
-          creationSource: "provider",
-        });
         yield* sink.write({
           events: [
-            {
-              id: EventId.make("reviewer-root"),
-              type: "node.updated",
-              threadId: reviewerThreadId,
-              occurredAt: now,
-              payload: {
-                id: reviewerRootId,
-                threadId: reviewerThreadId,
-                runId: null,
-                parentNodeId: null,
-                rootNodeId: reviewerRootId,
-                kind: "root_turn",
-                status: "running",
-                countsForRun: false,
-                providerThreadId: null,
-                providerTurnId: null,
-                nativeItemRef: null,
-                runtimeRequestId: null,
-                checkpointScopeId: null,
-                startedAt: now,
-                completedAt: null,
-              },
-            },
             // A subagent the reviewer started, which the provider records on the
             // reviewer's own thread.
             {
@@ -880,6 +892,8 @@ const stopEarlierBackgroundWork = ({
           reviewerThread.turnItems.find((item) => item.id === nestedItemId)?.status,
           "interrupted",
         );
+        const testerThread = yield* orchestrator.getThreadProjection(tester.threadId);
+        assert.equal(testerThread.nodes[0]?.status, "interrupted");
       }).pipe(
         Effect.provide(
           ProviderReplayHarness.layerWithRegistry(
