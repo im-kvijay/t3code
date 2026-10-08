@@ -347,6 +347,10 @@ it.effect("task_cancel ends a delegated child's background native subagent", () 
           childAfter.nodes.find((entry) => entry.id === subagentId)?.status,
           "interrupted",
         );
+        assert.equal(
+          childAfter.turnItems.find((item) => item.type === "subagent")?.status,
+          "interrupted",
+        );
         // The child's own turn had completed, so the task keeps that result.
         const after = yield* service.taskStatus(scope, task.id);
         assert.equal(after.status, "completed");
