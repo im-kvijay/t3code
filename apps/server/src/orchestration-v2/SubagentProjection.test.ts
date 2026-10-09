@@ -23,6 +23,7 @@ import {
   subagentResultForRun,
   makeSubagentConversationArtifacts,
   endOrphanedNativeSubagent,
+  endRunlessRootTurns,
 } from "@t3tools/provider-core/server/subagentProjection";
 
 import { emptyProjection } from "./ProjectionStore.ts";
@@ -338,6 +339,42 @@ it.effect("ends an orphaned native subagent's node when only its record already 
     assert.deepEqual(
       events.map((event) => [event.type, event.type === "node.updated" && event.payload.status]),
       [["node.updated", "cancelled"]],
+    );
+  }),
+);
+
+it.effect("ends a runless root turn's items when its node already ended", () =>
+  Effect.gen(function* () {
+    const root = {
+      id: NodeId.make("node:runless-root"),
+      kind: "root_turn",
+      status: "running",
+      runId: null,
+    };
+    const item = (id: string) => ({ id, nodeId: root.id, runId: null, status: "running" });
+    const events = yield* endRunlessRootTurns({
+      threadId: childThreadId,
+      providerInstanceId: parentProviderInstanceId,
+      projection: {
+        nodes: [root],
+        turnItems: [item("turn-item:command"), item("turn-item:reasoning")],
+      } as never,
+      status: "cancelled",
+      now: yield* DateTime.now,
+      emitted: [
+        {
+          type: "turn-item.updated",
+          payload: { ...item("turn-item:command"), status: "cancelled" },
+        },
+        { type: "node.updated", payload: { ...root, status: "cancelled" } },
+      ] as never,
+      allocateEventId: () => Effect.succeed(EventId.make("event:runless-root")),
+    });
+    assert.deepEqual(
+      events.map(
+        (event) => `${event.type} ${event.type === "turn-item.updated" && event.payload.id}`,
+      ),
+      ["turn-item.updated turn-item:reasoning"],
     );
   }),
 );

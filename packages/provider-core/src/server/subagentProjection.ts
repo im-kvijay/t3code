@@ -365,18 +365,21 @@ export const endRunlessRootTurns = <E>(input: {
       if (
         node.kind !== "root_turn" ||
         node.runId !== null ||
-        !isOrchestrationV2WorkActive(node.status) ||
-        endedNodeIds.has(node.id)
+        !isOrchestrationV2WorkActive(node.status)
       ) {
         continue;
       }
-      events.push({
-        ...scope,
-        id: yield* input.allocateEventId(),
-        type: "node.updated",
-        nodeId: node.id,
-        payload: { ...node, status, completedAt: now },
-      });
+      // Recovery may have ended this node through one of its items; its other
+      // items still need ending.
+      if (!endedNodeIds.has(node.id)) {
+        events.push({
+          ...scope,
+          id: yield* input.allocateEventId(),
+          type: "node.updated",
+          nodeId: node.id,
+          payload: { ...node, status, completedAt: now },
+        });
+      }
       for (const item of input.projection.turnItems) {
         if (
           item.nodeId !== node.id ||
