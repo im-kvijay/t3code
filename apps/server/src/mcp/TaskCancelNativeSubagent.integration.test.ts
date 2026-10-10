@@ -24,11 +24,7 @@ import * as Stream from "effect/Stream";
 import { ClaudeProviderCapabilitiesV2 } from "../orchestration-v2/Adapters/ClaudeAdapterV2.ts";
 import * as EffectWorker from "../orchestration-v2/EffectWorker.ts";
 import * as Orchestrator from "../orchestration-v2/Orchestrator.ts";
-import type {
-  ProviderAdapterV2Event,
-  ProviderAdapterV2Shape,
-  ProviderAdapterV2TurnInput,
-} from "@t3tools/provider-core/server/ProviderAdapter";
+import * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
 import * as ProviderAdapterRegistry from "../orchestration-v2/ProviderAdapterRegistry.ts";
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
 import * as ProviderReplayHarness from "../orchestration-v2/testkit/ProviderReplayHarness.ts";
@@ -52,10 +48,10 @@ it.effect("task_cancel ends a delegated child's background native subagent", () 
     Effect.gen(function* () {
       const cwd = yield* checkpointWorkspace("task-cancel-native-subagent");
       const turns: Array<{
-        readonly turn: ProviderAdapterV2TurnInput;
-        readonly events: Queue.Queue<ProviderAdapterV2Event>;
+        readonly turn: ProviderAdapter.ProviderAdapterV2TurnInput;
+        readonly events: Queue.Queue<ProviderAdapter.ProviderAdapterV2Event>;
       }> = [];
-      const adapter: ProviderAdapterV2Shape = {
+      const adapter: ProviderAdapter.ProviderAdapterV2["Service"] = {
         instanceId,
         driver,
         getCapabilities: () => Effect.succeed(ClaudeProviderCapabilitiesV2),
@@ -63,7 +59,7 @@ it.effect("task_cancel ends a delegated child's background native subagent", () 
         openSession: (input) =>
           Effect.gen(function* () {
             const now = yield* DateTime.now;
-            const events = yield* Queue.unbounded<ProviderAdapterV2Event>();
+            const events = yield* Queue.unbounded<ProviderAdapter.ProviderAdapterV2Event>();
             return {
               instanceId,
               driver,
@@ -309,7 +305,7 @@ it.effect("task_cancel ends a delegated child's background native subagent", () 
             failure: null,
             threadDisposition: "reusable",
           },
-        ] satisfies ReadonlyArray<ProviderAdapterV2Event>) {
+        ] satisfies ReadonlyArray<ProviderAdapter.ProviderAdapterV2Event>) {
           yield* Queue.offer(child.events, event);
         }
         yield* Fiber.join(waiting);

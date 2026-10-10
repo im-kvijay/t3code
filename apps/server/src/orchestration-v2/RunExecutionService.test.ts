@@ -1477,8 +1477,8 @@ it.effect("ends a nested native subagent and its thread when the root run is int
           id,
           lineage: { parentThreadId, relationshipToParent: "subagent", rootThreadId: threadId },
         },
-      }) as ProviderAdapterV2Event;
-    const events: ReadonlyArray<ProviderAdapterV2Event> = [
+      }) as ProviderAdapter.ProviderAdapterV2Event;
+    const events: ReadonlyArray<ProviderAdapter.ProviderAdapterV2Event> = [
       subagentThread(childThreadId, threadId),
       subagentThread(grandchildThreadId, childThreadId),
       {
@@ -1492,7 +1492,7 @@ it.effect("ends a nested native subagent and its thread when the root run is int
           childThreadId: grandchildThreadId,
           status: "running",
         },
-      } as ProviderAdapterV2Event,
+      } as ProviderAdapter.ProviderAdapterV2Event,
       {
         type: "node.updated",
         driver,
@@ -1503,7 +1503,7 @@ it.effect("ends a nested native subagent and its thread when the root run is int
           kind: "root_turn",
           status: "running",
         },
-      } as ProviderAdapterV2Event,
+      } as ProviderAdapter.ProviderAdapterV2Event,
       {
         type: "turn.terminal",
         driver,
@@ -1525,7 +1525,7 @@ it.effect("ends a nested native subagent and its thread when the root run is int
         session: {
           events: Stream.fromIterable(events),
           startTurn: () => Effect.void,
-        } as unknown as ProviderAdapterV2SessionRuntime,
+        } as unknown as ProviderAdapter.ProviderAdapterV2SessionRuntime,
         run: { id: runId, threadId, ordinal: 1, providerInstanceId } as OrchestrationV2Run,
         rootNode: { id: NodeId.make(`node:${key}`) } as OrchestrationV2ExecutionNode,
         checkpointScope: {
